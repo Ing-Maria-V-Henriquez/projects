@@ -1,0 +1,304 @@
+---
+title: "Case_Bellabeat"
+author: "Valentina Henriques"
+date: "2025-01-27"
+output: html_document
+---
+
+
+__Business Content__
+Bellabeat is a company dedicated to women's wellness, offering products and apps for stress management, hydration, and habit formation.
+
+__Analysis Objective__
+Identify the key factors influencing the demand for SMAFI products.
+
+## Data Sets
+
+These data sets, is in CSV format and there are around of the data sets 33 users and 31 days. 
+
+__There are 18 data sets:__
+* dailyActivity_merged
+* dailyCalories_merged
+* dailyIntensities_merged
+* dailySteps_merged
+* heartrate_seconds_merged
+* hourlyCalories_merged
+* hourlyIntensities_merged
+* hourlySteps_merged
+* minuteCaloriesNarrow_merged 
+* minuteIntensitiesNarrow_merged
+* minuteIntensitiesWide_merged
+* minuteMETsNarrow_merged
+* minuteSleep_merged
+* minuteStepsNarrow_merged
+* minuteStepsWide_merged
+* sleepDay_merged
+* weightLogInfo_merged
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install Packages
+```{r}
+options(repos = "https://mirror.chpc.utah.edu/pub/cran/")
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("readr")
+install.packages("stringr")
+
+```
+
+## Loading Packages
+```{r}
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(stringr)
+```
+
+## Importing Datasets
+```{r}
+daily_activity <- read.csv("D:\\Nueva carpeta\\Curso de google analisis de datos\\Proyecto - Caso de Estudio\\Fitabase Data 4.12.16-5.12.16\\dailyActivity_merged.csv") 
+hourly_calories <- read.csv("D:\\Nueva carpeta\\Curso de google analisis de datos\\Proyecto - Caso de Estudio\\Fitabase Data 4.12.16-5.12.16\\hourlyCalories_merged.csv")
+hourly_intensity <- read.csv("D:\\Nueva carpeta\\Curso de google analisis de datos\\Proyecto - Caso de Estudio\\Fitabase Data 4.12.16-5.12.16\\hourlyIntensities_merged.csv")
+sleep_day <- read.csv("D:\\Nueva carpeta\\Curso de google analisis de datos\\Proyecto - Caso de Estudio\\Fitabase Data 4.12.16-5.12.16\\sleepDay_merged.csv")
+weight_log_info <- read.csv("D:\\Nueva carpeta\\Curso de google analisis de datos\\Proyecto - Caso de Estudio\\Fitabase Data 4.12.16-5.12.16\\weightLogInfo_merged.csv")
+```
+
+## View the Data
+```{r}
+head(daily_activity)
+str(daily_activity)
+
+head(hourly_calories)
+str(hourly_calories)
+
+head(hourly_intensity)
+str(hourly_intensity)
+
+head(sleep_day)
+str(sleep_day)
+```
+
+## Fixing formatting
+First of all, we want to know what is the function that we have to use to convert character vector o factor. So going to use Class() function.
+
+```{r}
+class(daily_activity$ActivityDate)
+class(hourly_calories$ActivityHour)
+class(hourly_intensity$ActivityHour)
+class(sleep_day$SleepDay)
+```
+
+```{r}
+# Daily Activities
+daily_activity <- daily_activity %>%
+  mutate(date = format(ActivityDate, format = "%m/%d/%Y"))
+str(daily_activity)
+class(daily_activity$ActivityDate) 
+
+# Hourly Calories
+hourly_calories <- hourly_calories %>%
+  mutate(
+    ActivityHour_POSIX = parse_date_time(ActivityHour, orders = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"), 
+    time = format(ActivityHour_POSIX, format = "%H:%M:%S"),  # Format time (from POSIXct)
+    date = format(ActivityHour_POSIX, format = "%m/%d/%Y")   # Format date (from POSIXct)
+  )
+
+str(hourly_calories) # Check the updated structure
+class(hourly_calories$ActivityHour)
+
+# Hourly Intensities
+hourly_intensity <- hourly_intensity %>%
+  mutate(
+    ActivityHour = str_squish(ActivityHour), # 1. Remove Whitespace (Crucial!)
+    ActivityHour_POSIX = parse_date_time(ActivityHour, orders = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"), # 2. Correct orders!
+    time = format(ActivityHour_POSIX, format = "%H:%M:%S", tz = "UTC"), # 3. Format Time
+    date = format(ActivityHour_POSIX, format = "%m/%d/%Y", tz = "UTC")  # 4. Format Date
+  )
+
+str(hourly_intensity)  # 5. Check the structure 
+class(hourly_intensity$ActivityHour)
+
+# Sleep Day
+sleep_day <- sleep_day %>%
+  mutate(
+    SleepDay = str_squish(SleepDay),  # 1. Remove Whitespace 
+    SleepDay_POSIX = parse_date_time(SleepDay, orders = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"), # 2. Convert to POSIXct (UTC)
+    time = format(SleepDay_POSIX, format = "%H:%M:%S", tz = "UTC"), # 3. Format Time (UTC)
+    date = format(SleepDay_POSIX, format = "%m/%d/%Y", tz = "UTC")  # 4. Format Date (UTC)
+  )
+
+str(sleep_day)  # 5. Check the structure
+class(sleep_day$SleepDay)
+                              
+```
+
+## Exploring and Summarizing Data
+We want to know the duplicate data, we going to use n_distinct() and summary() function.
+Let's star with n_distinct() function. 
+```{r}
+n_distinct(daily_activity$Id)
+n_distinct(hourly_calories$Id)
+n_distinct(hourly_intensity$Id)
+n_distinct(sleep_day$Id)
+n_distinct(weight_log_info$Id)
+```
+
+
+This information tell us that are 33 women in daily Activity, 33 women in Hourly Calories, 33 women in Hourly Intensities, 24 women Sleep Day and 8 women in Weight Login Information.
+
+Now we are going to use summary() function.
+```{r}
+# Daily Activity
+daily_activity %>%  
+  select(TotalSteps,
+         TotalDistance,
+         SedentaryMinutes, Calories) %>%
+  summary()
+
+# explore number of active minutes per category
+daily_activity %>%
+  select(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes) %>%
+  summary()
+
+# calories
+hourly_calories %>%
+  select(Calories) %>%
+  summary()
+
+# sleep
+sleep_day %>%
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed) %>%
+  summary()
+
+# weight
+weight_log_info %>%
+  select(WeightKg, BMI) %>%
+  summary()
+
+```
+
+__Some notable things from the Summary__
+  *According to the average the women, sleep 1 time for 7 hours.
+  *The Average sedentary time is 991 minutes, equivalent to 16 hours.This concludes that it has to decrease.
+  *According the Average, the total steps per day are 7638. CDC research indicates that while an average of 7,638 steps per day is a good start, increasing daily steps can significantly lower mortality risk. Studies show an 8,000-step daily average is linked to a 51% reduced risk of death from any cause. Moreover, individuals taking 12,000 steps daily may experience a 65% lower mortality risk compared to those taking only 4,000.
+  *The much of the women are little active.
+
+## Inner data
+Now, I'm going to do Inner Join in two data sets (daily_activity and sleep_day) for to do the visualization. I'm going to join the "Id" and "Date" (that I previously created after converting data to date time format).
+```{r}
+
+# 1. Remove whitespace from the original date columns 
+sleep_day <- sleep_day %>%
+  mutate(SleepDay = str_squish(SleepDay))
+
+daily_activity <- daily_activity %>%
+  mutate(ActivityDate = str_squish(ActivityDate))
+
+# 2. Convert dates to consistent character format (mm/dd/yyyy) in both data frames
+sleep_day <- sleep_day %>%
+  mutate(date = format(parse_date_time(SleepDay, orders = "%m/%d/%Y %I:%M:%S %p", tz = "UTC"), format = "%m/%d/%Y"))
+
+daily_activity <- daily_activity %>%
+  mutate(date = format(as.Date(ActivityDate, format = "%m/%d/%Y"), format = "%m/%d/%Y"))
+
+# 3. Perform the left_join
+join_data <- left_join(sleep_day, daily_activity, by = c("Id", "date"))
+
+head(join_data)
+str(join_data)
+```
+
+## Visualization
+```{r}
+ggplot(data=daily_activity, aes(x=TotalSteps, y=Calories)) + 
+  geom_point() + geom_smooth() + labs(title="Total Steps vs. Calories")
+```
+
+As we can see, there are a correlation between Total Steps and Calories, There more steps more calories we burn.
+
+```{r}
+ggplot(data=sleep_day, aes(x=TotalMinutesAsleep, y=TotalTimeInBed)) + 
+  geom_point()+ labs(title="Total Minutes Asleep vs. Total Time in Bed")
+```
+
+The relation of Total Minutes Asleep and Total Time in Bed looks linear, The users should consider to use more the application. 
+
+Now, we are going to see intensities data over time (hourly)
+
+```{r}
+hourly_intensity_new <- hourly_intensity %>%
+  group_by(time) %>%
+  drop_na() %>%
+  summarise(mean_total_intensity = mean(TotalIntensity, na.rm = TRUE), .groups = "drop")
+
+hourly_intensity_new <- hourly_intensity_new %>%
+  filter(n() > 1)
+
+# Remove any remaining NAs in mean_total_intensity (if any)
+hourly_intensity_new <- hourly_intensity_new %>%
+  filter(!is.na(mean_total_intensity))
+
+# Convert 'time' to a factor, ordered by time
+hourly_intensity_new <- hourly_intensity_new %>%
+  mutate(time = factor(time, levels = unique(time)))  # Order the time factor
+
+# Visualization
+ggplot(data = hourly_intensity_new, aes(x = time, y = mean_total_intensity)) +
+  geom_col(fill = 'purple', alpha = 0.7) +  # Use geom_col for bars
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),  # Adjusted angle
+        panel.background = element_blank(), #Remove background
+        panel.grid.major = element_blank(), #Remove grid lines
+        panel.grid.minor = element_blank(), #Remove grid lines
+        axis.line = element_line(colour = "black")) + #Add axis lines
+  labs(title = "Average Total Intensity vs. Time",
+       x = "Time",
+       y = "Mean Total Intensity") +
+  scale_x_discrete(breaks = hourly_intensity_new$time[seq(1, length(hourly_intensity_new$time), by = 2)]) #Adjust x axis breaks
+```
+
+
+Our visualization of hourly Total Intensity data reveals peak user activity between 5 AM and 10 PM. Notably, activity significantly increases between 5 PM and 7 PM, likely coinciding with people's post-work routines, such as gym visits or evening walks. This insight presents an opportunity within the Bellabeat app: we can leverage this time window to send personalized reminders and motivational messages encouraging users to engage in physical activity.
+
+```{r}
+ggplot(data=join_data, aes(x=TotalMinutesAsleep, y=SedentaryMinutes)) + 
+geom_point(color='purple') + geom_smooth() +
+  labs(title="Minutes Asleep vs. Sedentary Minutes")
+```
+
+*We can see that there are a bad relation between Total Minutes Asleep and Sedentary Minutes.
+*The users of Bellabeat want to improve the Hourly Sleep and reduce sedentary time.
+*We need more data to discover the cause.
+
+## Recomendations
+
+Bellabeat has successfully established itself as a leading women's wellness company since its inception in 2013, empowering users with valuable insights into their health and lifestyle through data on activity, sleep, stress, and reproductive health.
+
+Based on my analysis of Fitbit Fitness Tracker Data, I've identified a key target audience for Bellabeat's marketing strategy: career-oriented women who prioritize work-life balance. These women, often engaged in sedentary activities like prolonged computer work, strive to maintain a healthy lifestyle through light exercise but may lack the knowledge and motivation to consistently improve their activity levels.
+
+To effectively reach this audience, Bellabeat should position its app as more than just a fitness tracker. It should be marketed as a holistic wellness guide, empowering women to integrate healthy habits into their busy lives through personalized recommendations, education, and motivational support.
+
+Key campaign messaging should emphasize the app's ability to help women balance their professional and personal lives while achieving their health goals.
+
+__Here are some specific app features that could resonate with this target audience:__
+
+*Step Count Goals: Encourage users to aim for at least 8,000 steps daily, highlighting the significant health benefits associated with this step count, such as a reduced risk of all-cause mortality.
+
+*Personalized Nutrition Guidance: Offer suggestions for healthy, low-calorie meal options to support weight management goals.
+
+*Sleep Optimization: Utilize in-app notifications to encourage consistent sleep schedules and potentially recommend reducing sedentary time to improve sleep quality.
+
+*Time-Sensitive Reminders: Leverage the peak activity window between 5 PM and 7 PM to send targeted reminders and motivational messages encouraging users to engage in physical activity, such as a post-work walk or gym session.
+
+I believe these insights and recommendations can significantly enhance Bellabeat's marketing strategy and further solidify its position as a trusted wellness partner for women.
